@@ -207,6 +207,35 @@ details.list li .meta{display:block;font-size:11px;color:var(--muted)}
 .pq textarea{width:100%;min-height:56px;margin-top:6px;font-size:14px;padding:8px 10px}
 .radios{display:flex;flex-wrap:wrap;gap:4px 16px;font-size:13px;color:var(--muted)}
 .radios label{display:flex;align-items:center;gap:6px}
+/* ===== 印刷用 ===== */
+#printRoot{display:none}
+@media print{
+  @page{size:A4 portrait;margin:14mm 13mm}
+  body{background:#fff!important;color:#111!important;font-size:10pt;line-height:1.55}
+  .wrap > *{display:none!important}
+  #printRoot{display:block!important}
+  .pr-head{border-bottom:2pt solid #24507A;padding-bottom:3mm;margin-bottom:4mm}
+  .pr-head .f{font-size:8.5pt;letter-spacing:.2em;color:#24507A;font-weight:700}
+  .pr-head h1{font-size:16pt;margin:1mm 0 1.5mm;color:#111}
+  .pr-head .m{font-size:9pt;color:#444;display:flex;flex-wrap:wrap;gap:1mm 6mm}
+  .pr-head .m b{color:#111}
+  #printRoot table{width:100%;border-collapse:collapse;font-size:9.5pt;font-variant-numeric:tabular-nums}
+  #printRoot th,#printRoot td{border-bottom:.5pt solid #bbb;padding:1.6mm 2mm;text-align:center}
+  #printRoot th{background:#eef2f5;color:#333;font-size:8.5pt;font-weight:700}
+  #printRoot td.l,#printRoot th.l{text-align:left}
+  #printRoot td.big{font-weight:700;font-size:11pt}
+  #printRoot .up{color:#1d6b45}#printRoot .down{color:#a1322a}
+  #printRoot h2{font-size:11pt;margin:6mm 0 2mm;color:#24507A;border-bottom:1pt solid #24507A;padding-bottom:1mm;break-after:avoid}
+  .pr-q{break-inside:avoid;margin-bottom:5mm}
+  .pr-q h3{font-size:11.5pt;margin:0 0 2mm;padding-bottom:1.2mm;border-bottom:1pt solid #24507A;color:#111;break-after:avoid}
+  .pr-q h3 span{font-size:9pt;color:#555;font-weight:400;margin-left:3mm}
+  .pr-q ol{margin:0;padding-left:6mm}
+  .pr-q ol li{margin-bottom:2.2mm;break-inside:avoid;white-space:pre-wrap}
+  .pr-q .none{color:#666;font-size:9.5pt;margin:0}
+  .pr-page{break-after:page}
+  .pr-page:last-child{break-after:auto}
+  .pr-foot{margin-top:5mm;border-top:.5pt solid #bbb;padding-top:1.5mm;font-size:8pt;color:#555}
+}
 .empty{background:var(--surface);border:1px dashed var(--line);border-radius:14px;padding:28px 20px;text-align:center;color:var(--muted)}
 </style>
 </head>
@@ -309,18 +338,25 @@ details.list li .meta{display:block;font-size:11px;color:var(--muted)}
     <div class="stats" id="stats"></div>
 
     <h2 class="sec">設問ごとの点数
+      <span style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <button type="button" class="btn ghost sm" id="printScores">集計を印刷</button>
       <span class="legend">
         <span><i class="sw cur"></i><span id="lgCur">今回</span></span>
         <span id="lgPrevWrap"><i class="sw prev"></i><span id="lgPrev">前回</span></span>
         <span>分布 <i class="sw sq" style="background:var(--r1)"></i>1<i class="sw sq" style="background:var(--r3)"></i>3<i class="sw sq" style="background:var(--r5)"></i>5</span>
-      </span>
+      </span></span>
     </h2>
     <div class="qtable" id="qtable"></div>
 
     <h2 class="sec">回ごとの推移 <span class="sub">平均点（5点満点）。色が濃いほど高評価。列見出しを押すとその回を表示します</span></h2>
     <div class="tablewrap" id="trend"></div>
 
-    <h2 class="sec">設問ごとの意見</h2>
+    <h2 class="sec">設問ごとの意見
+      <span style="display:flex;gap:8px;flex-wrap:wrap">
+        <button type="button" class="btn ghost sm" id="printOpsAll">意見をまとめて印刷</button>
+        <span class="sub">名前は印刷されません</span>
+      </span>
+    </h2>
     <div class="ops" id="ops"></div>
 
     <section id="paperSec" hidden>
@@ -368,6 +404,8 @@ details.list li .meta{display:block;font-size:11px;color:var(--muted)}
     </div>
   </div>
 </div>
+
+<div id="printRoot" aria-hidden="true"></div>
 
 </div>
 
@@ -836,7 +874,8 @@ details.list li .meta{display:block;font-size:11px;color:var(--muted)}
       var s = cur.round ? state.summaries.find(function (x) { return x.round_id === cur.round.id && x.q_no === q; }) : null;
       var stale = s && s.fp && s.fp !== fingerprint(list);
       html += '<div class="op"><div class="op-h"><h3>' + title + '</h3><span style="display:flex;gap:8px"><span class="pill">' + list.length + '件</span>' +
-        (stale ? '<span class="pill warn">要約後に意見が変わりました</span>' : '') + '</span></div>';
+        (stale ? '<span class="pill warn">要約後に意見が変わりました</span>' : '') +
+        (list.length ? ' <button type="button" class="btn quiet sm" data-printq="' + q + '">この設問を印刷</button>' : '') + '</span></div>';
       if (s && s.result) html += summaryHtml(s);
       if (list.length) {
         html += '<details class="list"' + (!s && list.length <= 3 ? ' open' : '') + '><summary>意見を' + list.length + '件すべて見る</summary><ul>' + list.map(function (o) {
@@ -1052,6 +1091,73 @@ details.list li .meta{display:block;font-size:11px;color:var(--muted)}
       })
       .catch(function (err) { if (!(err && err.handled)) $("pwMsg").textContent = "通信できませんでした。"; });
   });
+
+  /* ---------- 印刷 ---------- */
+  function printHead(cur, title, extra) {
+    var r = cur.round;
+    var m = '<span>実施回　<b>' + esc(r ? r.label : "") + '</b></span><span>回答数　<b>' + cur.count + '人</b></span>';
+    if (extra) m += extra;
+    m += '<span>出力日　<b>' + fmtDate(new Date().toISOString()).slice(0, 10) + '</b></span>';
+    return '<div class="pr-head"><div class="f">京町亭</div><h1>' + esc(title) + '</h1><div class="m">' + m + '</div></div>';
+  }
+  function doPrint(html) {
+    $("printRoot").innerHTML = html;
+    window.print();
+  }
+  function printScores() {
+    var cur = statsFor(sel.round);
+    var cmp = sel.comp ? statsFor(sel.comp) : emptyStats();
+    var h = printHead(cur, "スタッフアンケート 集計結果",
+      '<span>全体の満足度　<b>' + pct(cur.overall) + '</b>（平均 ' + fmt2(cur.overall) + '）</span>' +
+      (cmp.round ? '<span>比較　<b>' + esc(cmp.round.label) + '</b>（' + pct(cmp.overall) + '）</span>' : ''));
+    h += '<table><thead><tr><th class="l">設問</th><th>平均</th><th>満足度</th><th>回答</th>' +
+      (cmp.round ? '<th>' + esc(cmp.round.label) + '</th><th>差</th>' : '') +
+      '<th>1</th><th>2</th><th>3</th><th>4</th><th>5</th></tr></thead><tbody>';
+    for (var i = 0; i < 10; i++) {
+      var c = cur.per[i] || {}, p = cmp.per[i] || {};
+      var d = (c.avg != null && cmp.round && p.avg != null) ? c.avg - p.avg : null;
+      var dTxt = d == null ? '–' : (Math.abs(d) < 0.005 ? '±0' : (d > 0 ? '<span class="up">▲ +' + d.toFixed(2) + '</span>' : '<span class="down">▼ −' + Math.abs(d).toFixed(2) + '</span>'));
+      h += '<tr><td class="l">Q' + (i + 1) + '　' + esc(SHORT[i]) + '</td>' +
+        '<td class="big">' + fmt2(c.avg) + '</td><td>' + pct(c.avg) + '</td><td>' + (c.n || 0) + '人</td>' +
+        (cmp.round ? '<td>' + fmt2(p.avg) + '</td><td>' + dTxt + '</td>' : '') +
+        [0, 1, 2, 3, 4].map(function (k) { return '<td>' + (c.dist ? c.dist[k] : '–') + '</td>'; }).join("") + '</tr>';
+    }
+    h += '</tbody></table>';
+    var nOp = 0; for (var q = 0; q <= 10; q++) nOp += (cur.opinions[q] || []).length;
+    h += '<p class="pr-foot">※「満足度」は平均点÷5。1〜5の列は、その点を選んだ人数です。ご意見は ' + nOp + '件（別紙）。</p>';
+    doPrint(h);
+  }
+  function opinionPages(cur, qs, title) {
+    var h = '';
+    qs.forEach(function (q, i) {
+      var list = cur.opinions[q] || [];
+      var label = q === 0 ? 'その他ご意見' : 'Q' + q + '　' + QUESTIONS[q - 1];
+      var st = cur.per[q - 1];
+      var score = (q !== 0 && st && st.avg != null) ? '<span>平均 ' + fmt2(st.avg) + '／' + pct(st.avg) + '（' + st.n + '人回答）</span>' : '';
+      h += '<div class="pr-page">' + printHead(cur, title, '<span>件数　<b>' + list.length + '件</b></span>') +
+        '<div class="pr-q"><h3>' + esc(label) + score + '</h3>';
+      h += list.length
+        ? '<ol>' + list.map(function (o) { return '<li>' + esc(o.text) + '</li>'; }).join("") + '</ol>'
+        : '<p class="none">この設問に寄せられたご意見はありません。</p>';
+      h += '<p class="pr-foot">無記名で掲載しています（記入者名は印刷されません）。</p></div></div>';
+    });
+    return h;
+  }
+  function printOpinions(only) {
+    var cur = statsFor(sel.round);
+    var qs = [];
+    if (only != null) qs = [only];
+    else { for (var q = 1; q <= 10; q++) if ((cur.opinions[q] || []).length) qs.push(q); if ((cur.opinions[0] || []).length) qs.push(0); }
+    if (!qs.length) { banner("pageMsg", "warn", "この回にはまだご意見がありません。"); return; }
+    doPrint(opinionPages(cur, qs, "スタッフアンケート ご意見"));
+  }
+  $("printScores").addEventListener("click", printScores);
+  $("printOpsAll").addEventListener("click", function () { printOpinions(null); });
+  $("ops").addEventListener("click", function (e) {
+    var b = e.target.closest("[data-printq]");
+    if (b) printOpinions(Number(b.dataset.printq));
+  });
+  window.addEventListener("afterprint", function () { $("printRoot").innerHTML = ""; });
 
   function renderAll() {
     renderSelects();
