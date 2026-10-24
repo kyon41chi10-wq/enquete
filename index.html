@@ -188,8 +188,14 @@ tr:last-child td{border-bottom:0}
 details.list{margin-top:10px}
 details.list summary{cursor:pointer;font-size:13px;color:var(--ai);font-weight:700;width:max-content}
 details.list ul{list-style:none;margin:8px 0 0;padding:0;display:grid;gap:6px}
-details.list li{padding:7px 12px;border-left:3px solid var(--r3);background:var(--surface-2);border-radius:0 8px 8px 0;white-space:pre-wrap;overflow-wrap:anywhere}
+details.list li{padding:0;border-left:3px solid var(--r3);background:var(--surface-2);border-radius:0 8px 8px 0;overflow:hidden}
+details.list li label{display:flex;gap:10px;align-items:flex-start;padding:7px 12px;cursor:pointer}
+details.list li input[type=checkbox]{margin:3px 0 0;width:17px;height:17px;flex:none;accent-color:var(--ai)}
+details.list li .tx{white-space:pre-wrap;overflow-wrap:anywhere;min-width:0}
+details.list li.off{opacity:.5}
+details.list li.off .tx{text-decoration:line-through}
 details.list li .meta{display:block;font-size:11px;color:var(--muted)}
+.pickbar{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;margin-top:8px;font-size:12px;color:var(--muted)}
 .admin-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px}
 @media (max-width:720px){ .admin-grid{grid-template-columns:1fr} }
 .rrow{display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px;padding:8px 0;border-top:1px solid var(--grid)}
@@ -850,6 +856,13 @@ details.list li .meta{display:block;font-size:11px;color:var(--muted)}
     sel.round = b.dataset.goto; sel.comp = prevOf(sel.round); renderAll();
   });
 
+  var dropped = {};   // 印刷から外した意見（回+設問+本文で記憶）
+  function pickKey(roundId, q, text) { return roundId + "|" + q + "|" + text; }
+  function isPicked(roundId, q, text) { return !dropped[pickKey(roundId, q, text)]; }
+  function pickedList(cur, q) {
+    var r = cur.round ? cur.round.id : "";
+    return (cur.opinions[q] || []).filter(function (o) { return isPicked(r, q, o.text); });
+  }
   function fingerprint(list) { return list.length + ":" + list.map(function (o) { return o.text.length; }).join("."); }
   function summaryHtml(s) {
     var r = s.result || {};
@@ -875,16 +888,23 @@ details.list li .meta{display:block;font-size:11px;color:var(--muted)}
       var stale = s && s.fp && s.fp !== fingerprint(list);
       html += '<div class="op"><div class="op-h"><h3>' + title + '</h3><span style="display:flex;gap:8px"><span class="pill">' + list.length + '件</span>' +
         (stale ? '<span class="pill warn">要約後に意見が変わりました</span>' : '') +
-        (list.length ? ' <button type="button" class="btn quiet sm" data-printq="' + q + '">この設問を印刷</button>' : '') + '</span></div>';
+        (list.length ? '<span class="pill">印刷 ' + pickedList(cur, q).length + '件</span>' +
+          ' <button type="button" class="btn quiet sm" data-printq="' + q + '">この設問を印刷</button>' : '') + '</span></div>';
       if (s && s.result) html += summaryHtml(s);
       if (list.length) {
-        html += '<details class="list"' + (!s && list.length <= 3 ? ' open' : '') + '><summary>意見を' + list.length + '件すべて見る</summary><ul>' + list.map(function (o) {
+        var rid = cur.round ? cur.round.id : "";
+        html += '<details class="list"' + (!s && list.length <= 3 ? ' open' : '') + '><summary>意見を' + list.length + '件すべて見る（印刷するものを選べます）</summary><ul>' + list.map(function (o, i) {
           var meta = [];
           if (o.name) meta.push(o.name); else if (o.at) meta.push("無記名");
           var sc = Number(o.score); if (sc >= 1 && sc <= 5) meta.push("評価 " + sc);
           if (o.at) meta.push(fmtDate(o.at));
-          return '<li>' + esc(o.text) + (meta.length ? '<span class="meta">' + esc(meta.join("　・　")) + '</span>' : '') + '</li>';
-        }).join("") + '</ul></details>';
+          var on = isPicked(rid, q, o.text);
+          return '<li class="' + (on ? '' : 'off') + '"><label><input type="checkbox" class="opick" data-q="' + q + '" data-i="' + i + '"' + (on ? ' checked' : '') + '>' +
+            '<span class="tx">' + esc(o.text) + (meta.length ? '<span class="meta">' + esc(meta.join("　・　")) + '</span>' : '') + '</span></label></li>';
+        }).join("") + '</ul>' +
+        '<div class="pickbar"><span>チェックを外した意見は印刷されません。</span>' +
+        '<button type="button" class="btn quiet sm" data-pickall="' + q + '">すべて選ぶ</button>' +
+        '<button type="button" class="btn quiet sm" data-picknone="' + q + '">すべて外す</button></div></details>';
       } else {
         html += '<p class="muted" style="margin:6px 0 0">この回の意見はありません。</p>';
       }
@@ -1123,14 +1143,14 @@ details.list li .meta{display:block;font-size:11px;color:var(--muted)}
         [0, 1, 2, 3, 4].map(function (k) { return '<td>' + (c.dist ? c.dist[k] : '–') + '</td>'; }).join("") + '</tr>';
     }
     h += '</tbody></table>';
-    var nOp = 0; for (var q = 0; q <= 10; q++) nOp += (cur.opinions[q] || []).length;
+    var nOp = 0; for (var q = 0; q <= 10; q++) nOp += pickedList(cur, q).length;
     h += '<p class="pr-foot">※「満足度」は平均点÷5。1〜5の列は、その点を選んだ人数です。ご意見は ' + nOp + '件（別紙）。</p>';
     doPrint(h);
   }
   function opinionPages(cur, qs, title) {
     var h = '';
     qs.forEach(function (q, i) {
-      var list = cur.opinions[q] || [];
+      var list = pickedList(cur, q);
       var label = q === 0 ? 'その他ご意見' : 'Q' + q + '　' + QUESTIONS[q - 1];
       var st = cur.per[q - 1];
       var score = (q !== 0 && st && st.avg != null) ? '<span>平均 ' + fmt2(st.avg) + '／' + pct(st.avg) + '（' + st.n + '人回答）</span>' : '';
@@ -1147,15 +1167,43 @@ details.list li .meta{display:block;font-size:11px;color:var(--muted)}
     var cur = statsFor(sel.round);
     var qs = [];
     if (only != null) qs = [only];
-    else { for (var q = 1; q <= 10; q++) if ((cur.opinions[q] || []).length) qs.push(q); if ((cur.opinions[0] || []).length) qs.push(0); }
-    if (!qs.length) { banner("pageMsg", "warn", "この回にはまだご意見がありません。"); return; }
+    else { for (var q = 1; q <= 10; q++) if (pickedList(cur, q).length) qs.push(q); if (pickedList(cur, 0).length) qs.push(0); }
+    if (!qs.length || (only != null && !pickedList(cur, only).length)) {
+      banner("pageMsg", "warn", "印刷する意見が選ばれていません。チェックを入れてからもう一度お試しください。");
+      return;
+    }
     doPrint(opinionPages(cur, qs, "スタッフアンケート ご意見"));
   }
   $("printScores").addEventListener("click", printScores);
   $("printOpsAll").addEventListener("click", function () { printOpinions(null); });
   $("ops").addEventListener("click", function (e) {
     var b = e.target.closest("[data-printq]");
-    if (b) printOpinions(Number(b.dataset.printq));
+    if (b) { printOpinions(Number(b.dataset.printq)); return; }
+    var all = e.target.closest("[data-pickall]"), none = e.target.closest("[data-picknone]");
+    if (!all && !none) return;
+    var q = Number((all || none).dataset[all ? "pickall" : "picknone"]);
+    var cur = statsFor(sel.round);
+    var rid = cur.round ? cur.round.id : "";
+    (cur.opinions[q] || []).forEach(function (o) {
+      if (all) delete dropped[pickKey(rid, q, o.text)];
+      else dropped[pickKey(rid, q, o.text)] = true;
+    });
+    renderOpinions(cur);
+  });
+  $("ops").addEventListener("change", function (e) {
+    var cb = e.target.closest(".opick");
+    if (!cb) return;
+    var q = Number(cb.dataset.q), i = Number(cb.dataset.i);
+    var cur = statsFor(sel.round);
+    var o = (cur.opinions[q] || [])[i];
+    if (!o) return;
+    var key = pickKey(cur.round ? cur.round.id : "", q, o.text);
+    if (cb.checked) delete dropped[key]; else dropped[key] = true;
+    var li = cb.closest("li");
+    if (li) li.classList.toggle("off", !cb.checked);
+    var card = cb.closest(".op");
+    var pill = card && card.querySelector(".op-h .pill:nth-of-type(2)");
+    if (pill) pill.textContent = "印刷 " + pickedList(cur, q).length + "件";
   });
   window.addEventListener("afterprint", function () { $("printRoot").innerHTML = ""; });
 
